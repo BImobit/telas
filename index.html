@@ -318,14 +318,24 @@
         return;
       }
 
-      elCodigo.textContent = codigo;
-      elCodigo.dataset.valor = codigo;
-      document.getElementById('salvarBtn').disabled = false;
+elCodigo.textContent = codigo;
+elCodigo.dataset.valor = codigo;
+document.getElementById('salvarBtn').disabled = false;
 
-      elLinksContainer.innerHTML = '';
-      (data.passos || []).forEach((p,i) => {
-        addLinkGroup(p.link, p.tempo);
-      });
+// Mostrar seção de uso com link
+document.getElementById('exemploUso').classList.remove('hidden');
+const linkExec = `${location.origin}${location.pathname}?codigo=${codigo}`;
+const inputLink = document.getElementById('linkCompleto');
+inputLink.value = linkExec;
+document.getElementById('copiarLink').onclick = () => {
+  navigator.clipboard.writeText(linkExec).then(() => alert('Link copiado!'));
+};
+
+elLinksContainer.innerHTML = '';
+(data.passos || []).forEach((p,i) => {
+  addLinkGroup(p.link, p.tempo);
+});
+
 
       document.getElementById('addBtn').onclick = () => {
         const count = elLinksContainer.querySelectorAll('.link-group').length;
@@ -384,54 +394,67 @@
       }
     }
 
-    function salvarProjeto(isEditing) {
-      const codigo = elCodigo.dataset.valor;
-      if (!codigo) { alert("Erro: código não gerado."); return; }
-      const links = [...elLinksContainer.querySelectorAll('.link')].map(el => el.value.trim());
-      const tempos = [...elLinksContainer.querySelectorAll('.tempo')].map(el => Number(el.value.trim()));
+async function salvarProjeto(isEditing) {
+  const codigo = elCodigo.dataset.valor;
+  if (!codigo) {
+    alert("Erro: código não foi gerado.");
+    return;
+  }
 
-      if (links.length === 0) { alert("Adicione ao menos um link."); return; }
-      for (let i=0; i<links.length; i++){
-        if (!links[i] || !tempos[i]|| isNaN(tempos[i])|| tempos[i]<=0){
-          alert(`Preencha link ${i+1} e tempo correspondente.`); return;
-        }
-        if (!/^https?:\/\//i.test(links[i])) {
-          alert(`Link ${i+1} precisa iniciar com http:// ou https://`); return;
-        }
-      }
+  const links = [...elLinksContainer.querySelectorAll('.link')].map(el => el.value.trim());
+  const tempos = [...elLinksContainer.querySelectorAll('.tempo')].map(el => Number(el.value.trim()));
 
-      const paramsArr = [`codigo=${encodeURIComponent(codigo)}`];
-      if (isEditing) paramsArr.push('editar=true');
-      links.forEach((link,i) => {
-        paramsArr.push(`link${i+1}=${encodeURIComponent(link)}`);
-        paramsArr.push(`tempo${i+1}=${encodeURIComponent(tempos[i])}`);
-      });
-
-      const url = `${API_URL}?${paramsArr.join('&')}`;
-      let iframeHidden = document.getElementById('invisibleFrame');
-      if (!iframeHidden) {
-        iframeHidden = document.createElement('iframe');
-        iframeHidden.id = 'invisibleFrame';
-        iframeHidden.style.display='none';
-        document.body.appendChild(iframeHidden);
-      }
-      iframeHidden.src = url;
-
-      alert(isEditing ? `Projeto ${codigo} atualizado!` : `Projeto ${codigo} salvo!`);
-
-      if (!isEditing) {
-        location.href = `${location.pathname}?editar&codigo=${codigo}`;
-        return;
-      }
-
-      document.getElementById('exemploUso').classList.remove('hidden');
-      const linkExec = `${location.origin}${location.pathname}?codigo=${codigo}`;
-      const inputLink = document.getElementById('linkCompleto');
-      inputLink.value = linkExec;
-      document.getElementById('copiarLink').onclick = () => {
-        navigator.clipboard.writeText(linkExec).then(() => alert('Link copiado para a área de transferência!'));
-      };
+  if (links.length === 0) {
+    alert("Adicione pelo menos um link.");
+    return;
+  }
+  for (let i = 0; i < links.length; i++) {
+    if (!links[i] || isNaN(tempos[i]) || tempos[i] <= 0) {
+      alert(`Preencha corretamente o link ${i+1} e o tempo.`);
+      return;
     }
+    if (!/^https?:\/\//i.test(links[i])) {
+      alert(`O link ${i+1} precisa começar com http:// ou https://`);
+      return;
+    }
+  }
+
+  // preparar params
+  const paramsArr = [`codigo=${encodeURIComponent(codigo)}`];
+  if (isEditing) paramsArr.push('editar=true');
+  links.forEach((link, i) => {
+    paramsArr.push(`link${i+1}=${encodeURIComponent(link)}`);
+    paramsArr.push(`tempo${i+1}=${encodeURIComponent(tempos[i])}`);
+  });
+
+  const url = `${API_URL}?${paramsArr.join('&')}`;
+
+  try {
+    const res = await fetch(url);
+    const text = await res.text(); // ou res.json(), dependendo resposta
+    // aqui você pode checar se text ou json indicam sucesso
+    alert(isEditing ? `Projeto ${codigo} atualizado com sucesso!` : `Projeto ${codigo} salvo com sucesso!`);
+
+    // sempre mostrar a seção “link para copiar”
+    document.getElementById('exemploUso').classList.remove('hidden');
+
+    const linkExec = `${location.origin}${location.pathname}?codigo=${codigo}`;
+    const inputLink = document.getElementById('linkCompleto');
+    inputLink.value = linkExec;
+    document.getElementById('copiarLink').onclick = () => {
+      navigator.clipboard.writeText(linkExec).then(() => alert('Link copiado!'));
+    };
+
+    // Se for modo novo (não isEditing) redireciona pra edição
+    if (!isEditing) {
+      location.href = `${location.pathname}?editar&codigo=${codigo}`;
+    }
+
+  } catch (err) {
+    console.error('Erro ao salvar projeto:', err);
+    alert('Erro ao salvar o projeto. Tente novamente.');
+  }
+}
 
     async function iniciarExecucao(codigo) {
       codigoProjeto = codigo;
